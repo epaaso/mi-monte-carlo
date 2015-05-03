@@ -1,7 +1,7 @@
 ##El modulo para trabajr con el modelo de Ising usando Metropolis-Hasting
-module Ising
+#module Ising
 
-export configuracion, Configuracion, energia, energia!, δE, δE!, flip!, flip_matriz!
+#export configuracion, Configuracion, energia, energia!, δE, δE!, flip!, flip_matriz!
 
 ####  TIPOS  ####
 type Configuracion
@@ -60,8 +60,8 @@ function δE(σ::Array{Int64,2},i::Int64=0,j::Int64=0,J::Float64=1)
     L1=size(σ)[1]
     L2=size(σ)[2]
 
-    ΔE=2*J*σ[i,j]*(σ[modulo(i+1,L1),j]+σ[modulo(i-1,L1),j]+
-    σ[i,modulo(j+1,L2)]+σ[i,modulo(j-1,L2)])/4,
+    2*σ[i,j]*(σ[modulo(i+1,L1),j]+σ[modulo(i-1,L1),j]+
+    σ[i,modulo(j+1,L2)]+σ[i,modulo(j-1,L2)]),
     i,j
 end
 function δE!(conf::Configuracion)
@@ -84,8 +84,63 @@ function flip!(conf::Configuracion,i::Int64=0,j::Int64=0)
     conf.matriz=flip_matriz!(conf.matriz,i,j)
 end
 
-##Termina modulo
+#Proceso estocastico con algoritmo Metropolis-Hastings
+function metropolis!(σ::Array{Int64,2},T::Float64)
+    ΔE,i,j=δE(σ)
+    ΔM=0
+    α=exp(-β(T)*ΔE)
+    r=rand()
+    cambio=false
+    if r<α
+        σ[i,j]=-σ[i,j]
+        cambio=true
+        ΔM=σ[i,j]<0?-2:2
+    else
+        cambio=false
+    end
+    return cambio,ΔE,ΔM
 end
+
+######Evolucion de una cadena#######
+function iteracion_con_E_y_M(espines::Array{Int64,2},iteraciones::Int64,T::Float64=1.0)
+    Es::Array{Int64}=Array(Int64, iteraciones)
+    Ms::Array{Int64}=Array(Int64, iteraciones)
+    cambios::Array{Bool}=Array(Bool, iteraciones)
+    E=energia(espines)
+    M=magnetizacion(espines)
+
+    for i in 1:iteraciones
+        cambio,ΔE,ΔM=metropolis!(espines,T)
+        cambios[i]=cambio
+        if cambio
+            E+=ΔE
+            M+=ΔM
+        end
+        Es[i]=E
+        Ms[i]=M
+    end
+
+    return Es,Ms,cambios
+end
+
+#Funcion para sacar el promedio de una propiedad que depende de la matriz de estabilidad de nuestro metod
+function promedio_propiedad(propiedad::Array{Float64,1},estados::Int64,funcion_tamano_sampleo::Function=sqrt)
+    sumProp::Float64=0
+    medidas::Int64=0
+    for i in 1:int(funcion_tamano_sampleo(estados)):length(propiedad)
+        medidas+=1
+        sumProp+=propiedad[i]
+    end
+    sumProp/medidas
+end
+
+#Funcion que regresa un arreglo de la propieda promediada en el intervalo de temperaturas deseadas
+function propiedad_vs_temperatura(propiedad::Array{Float64,1},Tmin::Float64=0.1,Tmax::Float64=6.0,Tstep::Float64=0.3)
+
+end
+
+##Termina modulo
+#end
 
 ###PRUEBAS
 using Ising
