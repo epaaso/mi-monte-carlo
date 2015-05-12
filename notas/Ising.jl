@@ -4,6 +4,8 @@ module Ising
 export configuracion, Configuracion, configuracion, energia, energia!, δE, δE!, flip!, flip_matriz!, magnetizacion, magnetizacion!,
         simulacion_con_E_y_M, simulacion_con_E_y_M_arreglo, promedio_propiedad, energia_magnetizacion_vs_temperatura
 
+using PyPlot
+
 ####  TIPOS  ####
 type Configuracion
     ancho::Int64
@@ -15,8 +17,8 @@ type Configuracion
     energia::Float64
     posible_cambio::Array{Int64,1}
 end
-function configuracion(ancho::Int64,largo::Int64,temperatura::Float64)
-    regreso=Configuracion(ancho,largo,int(rand(ancho,largo))-1,1.,0,temperatura,0,[0,0])
+function configuracion(ancho::Int64,largo::Int64,temperatura::Float64=0.2)
+    regreso=Configuracion(ancho,largo,2*int(rand(ancho,largo))-1,1.,0,temperatura,0,[0,0])
     regreso.magnetizacion=sum(regreso.matriz)
     regreso
 end
@@ -26,6 +28,20 @@ end
 #Hacemos nuestro propio modulo para tener fronteras periodicas
 function modulo(i::Int64,L::Int64)
     i = i>L ? 1 : i<1 ? L : i
+end
+
+#Flip a la configuracion si no se escoge la poscion esta sera aleatoria
+function flip_matriz!(σ::Array{Int64,2},i::Int64=0,j::Int64=0)
+    N=size(σ)[1]
+    M=size(σ)[2]
+    if i==0 && j==0
+        i,j=int((N-1)*rand())+1,int((M-1)*rand())+1
+    end
+    σ[i,j]=-σ[i,j]
+    σ
+end
+function flip!(conf::Configuracion,i::Int64=0,j::Int64=0)
+    conf.matriz=flip_matriz!(conf.matriz,i,j)
 end
 
 #Magnetizacion
@@ -47,7 +63,7 @@ function energia(σ::Array{Int64,2},J::Float64=1.)
                 σ[i,modulo(j+1,L2)]+σ[i,modulo(j-1,L2)])*J
         end
     end
-    E
+    E/2
 end
 function energia!(conf::Configuracion)
   conf.energia=energia(conf.arrreglo,conf.interaccion)
@@ -71,33 +87,17 @@ function δE!(conf::Configuracion)
     δE(conf.matriz,i,j,conf.interaccion)
 end
 
-#Flip a la configuracion si no se escoge la poscion esta sera aleatoria
-function flip_matriz!(σ::Array{Int64,2},i::Int64=0,j::Int64=0)
-    N=size(σ)[1]
-    M=size(σ)[2]
-    if i==0 && j==0
-        i,j=int((N-1)*rand())+1,int((M-1)*rand())+1
-    end
-    σ[i,j]=-σ[i,j]
-    σ
-end
-function flip!(conf::Configuracion,i::Int64=0,j::Int64=0)
-    conf.matriz=flip_matriz!(conf.matriz,i,j)
-end
-
 #Proceso estocastico con algoritmo Metropolis-Hastings
 function metropolis!(σ::Array{Int64,2},T::Float64)
     ΔE,i,j=δE(σ)
     ΔM=0
-    α=exp(-1/T*ΔE)
+    α=exp(-(1/T)*ΔE)
     r=rand()
     cambio=false
     if r<α
         σ[i,j]=-σ[i,j]
         cambio=true
         ΔM=σ[i,j]<0?-2:2
-    else
-        cambio=false
     end
     return cambio,ΔE,ΔM
 end
@@ -133,7 +133,7 @@ end
 function promedio_propiedad(propiedad::Array{Float64,1},estados::Int64,funcion_tamano_sampleo::Function=sqrt)
     sumProp::Float64=0
     medidas::Int64=0
-    for i in 1:int(funcion_tamano_sampleo(estados)):length(propiedad)
+    for i in length(propiedad)/2:int(funcion_tamano_sampleo(estados)):length(propiedad)
         medidas+=1
         sumProp+=propiedad[i]
     end
@@ -143,7 +143,7 @@ end
 #Funcion que regresa un arreglo de la propiedad promediada en el intervalo de temperaturas deseadas
 function energia_magnetizacion_vs_temperatura(conf::Configuracion,iteraciones::Int64,
                                               Ts::Array{Float64,1}=[0.1:0.3:6.],funcion_tamano_sampleo::Function=sqrt)
-    #Unos contendores
+    #Unos contenedores
     ts_num=length(Ts)
     E_proms=Array(Float64,ts_num)
     M_proms=Array(Float64,ts_num)
@@ -159,16 +159,24 @@ function energia_magnetizacion_vs_temperatura(conf::Configuracion,iteraciones::I
 
     return Ts,E_proms,M_proms
 end
-function propiedad_vs_beta(propiedad::Array{Float64,1},estados::Int64,funcion_tamano_sampleo::Function=sqrt,Ts::Array{Float64,1}=[0.1:0.3:6.])
 
-    f_proms=propiedad_vs_temperatura(propiedad,estados,funcion_tamano_sampleo,Ts)[2]
+function plotear_E_M(ancho_::Int64, largo_::Int64, iteraciones_::Int64=int(2e6), Tmin_::Float64=0.2, Tmax_::Float64=4.0, Tstep_::Float64=0.3)
+    #Armamos nuestra configuracion
+    conf=configuracion(ancho_,largo_,Tmin_)
+    Ts=[Tmin_:Tstep_:Tmax_]
 
-    betas=similar(Ts)
-    for i in 1:length(Ts)
-        betas[i]=1/Ts[i]
-    end
+    #Simulamos
+    #Es,Ms,ds=simulacion_con_E_y_M(conf,iteraciones_)
+    Ts,E_proms,M_proms = energia_magnetizacion_vs_temperatura(conf,iteraciones_,Ts)
 
-    return betas,f_proms
+    #ioff()
+    plot(Ts,E_proms,label="Energia")
+    plot(Ts,M_proms,label="Magnetizacion")
+    legend()
+    xlabel("Temperatura")
+    title(L"⟨E⟩_T y ⟨M⟩_T vs. T en Ising 2D")
+    savefig("proms.png")
+    print("Ploteo guardado en proms.png en el directorio del script")
 end
 ##Termina modulo
 end

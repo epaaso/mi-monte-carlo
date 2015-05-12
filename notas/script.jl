@@ -29,7 +29,7 @@ elseif num_valores==2
     largo=int(valores[2]);
     iteraciones=int(4e6)
     Tmin=0.2
-    Tmax=5.
+    Tmax=5.0
     Tstep=0.2
 
 elseif num_valores==3
@@ -37,7 +37,7 @@ elseif num_valores==3
     largo=int(valores[2])
     iteraciones=int(valores[3])
     Tmin=0.2
-    Tmax=5.
+    Tmax=5.0
     Tstep=0.2
 
 elseif num_valores==6
@@ -62,20 +62,27 @@ else
     include("Ising.jl")
 end
 using Ising
-
-#Armamos nuestra configuracion
-conf=configuracion(ancho,largo,Tmin)
-Ts=[Tmin:Tstep:Tmax]
-
-#Simulamos
-Es,Ms,ds=simulacion_con_E_y_M(conf,iteraciones)
-Ts,E_proms,M_proms=(Es,conf.ancho*conf.largo,Ts)
-
 using PyPlot
-plot(Ts,E_proms,label="Energia");
-plot(Ts,M_proms,label="Magnetizacion");
-legend()
-xlabel("Temperatura")
-title("Energia y magnetizacion promedio vs. temperatura en Ising 2D")
-savefig("proms.png")
-print("Ploteo guardado en proms.png en el directorio del script")
+
+function plotear_E_M(ancho_::Int64, largo_::Int64, Tmin_::Float64=0.2, Tmax_::Float64=4.0, Tstep_::Float64=0.3, iteraciones_::Int64=int(2e6))
+    #Armamos nuestra configuracion
+    conf=configuracion(ancho_,largo_,Tmin_)
+    Ts=[Tmin_:Tstep_:Tmax_]
+
+    #Simulamos
+    Es,Ms,ds=simulacion_con_E_y_M(conf,iteraciones_)
+    Ts,E_proms,M_proms = energia_magnetizacion_vs_temperatura(Es,conf.ancho*conf.largo,Ts)
+
+    ioff()
+    plot(Ts,E_proms,label="Energia")
+    plot(Ts,M_proms,label="Magnetizacion")
+    legend()
+    xlabel("Temperatura")
+    title("Energia y magnetizacion promedio vs. temperatura en Ising 2D")
+    savefig("proms.png")
+    print("Ploteo guardado en proms.png en el directorio del script")
+end
+
+plotear_E_M(ancho,largo,Tmin,Tmax,Tstep,iteraciones)
+
+
